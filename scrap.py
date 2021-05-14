@@ -14,6 +14,7 @@ import requests
 import re
 from openpyxl import Workbook
 from enum import IntEnum
+from progress.bar import IncrementalBar
 
 # Change this to change script for another country :)
 # US-FIFA standard must be used
@@ -120,7 +121,6 @@ worksheet.cell(rank_info_row, column = RANK.RANK_DIFF).value = "rank_diff"
 
 # scrap fifa site for available editions
 def fetch_editions():
-
   # request && parse
   main_page = BeautifulSoup(requests.get("https://www.fifa.com/worldcup/").content, 'html.parser')
 
@@ -271,33 +271,43 @@ def scrap_ranking(ranking_edition):
 
   # scraping data
   for row in ranking_page_rows:
-    rank_number = row.find(class_="fi-table__rank").find('span').text
     rank_team = row.find(class_="fi-t__nText").text
-    rank_total_points = row.find(class_="fi-table__points").find('span').text
-    rank_previous_points = row.find(class_="fi-table__prevpoints").find('span').text
-    rank_diff = row.find(class_="fi-table__rankingmovement").find('span').text
+    if(rank_team == COUNTRY):
+      rank_number = row.find(class_="fi-table__rank").find('span').text
+      rank_total_points = row.find(class_="fi-table__points").find('span').text
+      rank_previous_points = row.find(class_="fi-table__prevpoints").find('span').text
+      rank_diff = row.find(class_="fi-table__rankingmovement").find('span').text
 
-    # writing routines
-    rank_info_row += 1
-    worksheet.cell(rank_info_row, column = RANK.RANK_ID).value = ranking_edition[0]
-    worksheet.cell(rank_info_row, column = RANK.DATE).value = ranking_edition[1]
-    worksheet.cell(rank_info_row, column = RANK.RANK).value = rank_number
-    worksheet.cell(rank_info_row, column = RANK.TEAM).value = rank_team
-    worksheet.cell(rank_info_row, column = RANK.TOTAL_POINTS).value = rank_total_points
-    worksheet.cell(rank_info_row, column = RANK.PREVIOUS_POINTS).value = rank_previous_points
-    worksheet.cell(rank_info_row, column = RANK.RANK_DIFF).value = rank_diff
+      # writing routines
+      rank_info_row += 1
+      worksheet.cell(rank_info_row, column = RANK.RANK_ID).value = ranking_edition[0]
+      worksheet.cell(rank_info_row, column = RANK.DATE).value = ranking_edition[1]
+      worksheet.cell(rank_info_row, column = RANK.RANK).value = rank_number
+      worksheet.cell(rank_info_row, column = RANK.TEAM).value = rank_team
+      worksheet.cell(rank_info_row, column = RANK.TOTAL_POINTS).value = rank_total_points
+      worksheet.cell(rank_info_row, column = RANK.PREVIOUS_POINTS).value = rank_previous_points
+      worksheet.cell(rank_info_row, column = RANK.RANK_DIFF).value = rank_diff
+      return
 
 
 # function calls
 cup_editions = fetch_editions()
+cup_bar = IncrementalBar("Fetching FIFA World Cups data", max=len(cup_editions))
 
 for cup in cup_editions:
   scrap_cup(cup)
+  cup_bar.next()
+cup_bar.finish()
 
 ranking_editions = fetch_ranking_editions()
+ranking_bar = IncrementalBar("Fetching World Cup Rankings for men data", max=len(ranking_editions))
 
 for ranking in ranking_editions:
   scrap_ranking(ranking)
+  ranking_bar.next()
+ranking_bar.finish()
 
 # save data
 workbook.save("data.xlsx")
+
+print("Done.")
