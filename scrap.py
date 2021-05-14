@@ -48,7 +48,7 @@ class MATCH(IntEnum):
   STADIUM = 7
   VENUE = 8
   TIME = 9
-  WIN = 10
+  RESULT = 10
   GOAL_PRO = 11
   GOAL_CON = 12
 
@@ -92,7 +92,7 @@ worksheet.cell(row, column = MATCH.REFEREE_NAC).value = "referee_nac"
 worksheet.cell(row, column = MATCH.STADIUM).value = "stadium"
 worksheet.cell(row, column = MATCH.VENUE).value = "venue"
 worksheet.cell(row, column = MATCH.TIME).value = "time"
-worksheet.cell(row, column = MATCH.WIN).value = "win"
+worksheet.cell(row, column = MATCH.RESULT).value = "result"
 worksheet.cell(row, column = MATCH.GOAL_PRO).value = "goal_pro"
 worksheet.cell(row, column = MATCH.GOAL_CON).value = "goal_con"
 
@@ -149,11 +149,59 @@ def scrap_matches(link):
       link_match = match.parent['href']
 
       if(team1.lower() == COUNTRY or team2.lower() == COUNTRY):
-        scrap_match(link)
+        scrap_match(link_match)
 
 def scrap_match(link):
   match_page = BeautifulSoup(requests.get("https://www.fifa.com" + link).content, 'html.parser')
   
+  # scrap oponent
+  teams = match_page.find_all(class_ = "fi-t__nText")
+
+  if(teams[0].contents[0].lower() != COUNTRY):
+    home = False
+    versus = teams[0].contents[0]
+
+  game_id = re.findall(r'match/([0-9])*/', link)
+  stadium = match_page.find_all(class_ = "fi__info__stadium")[0].contents[0]
+  venue = match_page.find_all(class_ = "fi__info__venue")[0].contents[0]
+  time = match_page.find_all(class_ = "fi-mu__info__datetime")[0].contents[0]
+
+  # scrap goals
+  goals = match_page.find_all(class_ = "fi-s__scoreText")[0].contents[0]
+  print(goals)
+  home_goal = re.findall(r'^([0-9]*)-', goals)
+  away_goal = re.findall(r'-([0-9]*)\b', goals)
+  print(home_goal)
+
+  if(home):
+    goal_pro = home_goal
+    goal_con = away_goal
+  else:
+    goal_pro = away_goal
+    goal_con = home_goal
+  if(goal_pro > goal_con):
+    result = "win"
+  elif(goal_pro == goal_con):
+    result = "draw"
+  elif(goal_pro < goal_con):
+    result = "lose"
+  
+
+
+
+
+  
+  # writing routines
+  worksheet.cell(row, column = MATCH.GAME_ID).value = game_id
+  worksheet.cell(row, column = MATCH.CUP_ID).value = cup_id
+  worksheet.cell(row, column = MATCH.VERSUS).value = versus
+  worksheet.cell(row, column = MATCH.STADIUM).value = stadium
+  worksheet.cell(row, column = MATCH.VENUE).value = venue
+  worksheet.cell(row, column = MATCH.TIME).value = time
+  worksheet.cell(row, column = MATCH.GOAL_PRO).value = goal_pro
+  worksheet.cell(row, column = MATCH.GOAL_CON).value = goal_con
+  worksheet.cell(row, column = MATCH.RESULT).value = result
+
 
 # TODO game_id cup_id versus phase referee referee_nac
 # TODO stadium venue time win goal_pro goal_con
@@ -180,8 +228,10 @@ def scrap_cup(cup):
 
 cup_editions = fetch_editions()
 
-for cup in cup_editions:
-  scrap_cup(cup)
+# for cup in cup_editions:
+  # scrap_cup(cup)
+
+scrap_cup(cup_editions[0])
 
 # request_edition(cup_editions[0][1])
 workbook.save("relatorio.xlsx")
