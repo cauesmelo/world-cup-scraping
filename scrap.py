@@ -125,20 +125,38 @@ def fetch_editions():
     cup_editions.append(tuple((cup_names.pop(), cup_links.pop())))
   return cup_editions
 
-def scrap_matches(link):
-  matches_group_page = BeautifulSoup(requests.get("https://www.fifa.com" + link + "matches/").content, 'html.parser')
-  
-  matches = matches_group_page.find_all(class_ = "result")
+def scrap_phases(link):
+  match_page = BeautifulSoup(requests.get("https://www.fifa.com" + link + "matches").content, 'html.parser')
+  temp = str(match_page.find_all(class_="tab-main-container"))
+  phases_names = re.findall(r'<span>(.*)<\/span>', temp)
+  phases_links = re.findall(r'<a href="(.*)">', temp)
+  return list(zip(phases_names, phases_links))
 
-  for match in matches:
-    team1 = match.find_all(class_ = "fi-t__nText")[0].contents[0]
-    team2 = match.find_all(class_ = "fi-t__nText")[1].contents[0]
-    if(team1.lower() == COUNTRY or team2.lower() == COUNTRY):
-      print(team1 + " vs " + team2)
-  # for match in matches:
-  #   temp = match.find(class_ = "fi-mu__info__datetime")
-  #   temp = re.findall(r'data-utcdate="(.*)">', str(temp))[0]
-    # print(temp)
+def scrap_matches(link):
+  phases = scrap_phases(link)
+
+  # TODO DEVELOP THIS
+  if(len(phases) == 0):
+    return None
+
+  for phase in phases:
+    phase_page = BeautifulSoup(requests.get("https://www.fifa.com" + link + "matches" + phase[1]).content, 'html.parser')  
+    matches = phase_page.find_all(class_ = "result")
+
+    for match in matches:
+      team1 = match.find_all(class_ = "fi-t__nText")[0].contents[0]
+      team2 = match.find_all(class_ = "fi-t__nText")[1].contents[0]
+      link_match = match.parent['href']
+
+      if(team1.lower() == COUNTRY or team2.lower() == COUNTRY):
+        scrap_match(link)
+
+def scrap_match(link):
+  match_page = BeautifulSoup(requests.get("https://www.fifa.com" + link).content, 'html.parser')
+  
+
+# TODO game_id cup_id versus phase referee referee_nac
+# TODO stadium venue time win goal_pro goal_con
 
 def scrap_cup(cup):
   global row
