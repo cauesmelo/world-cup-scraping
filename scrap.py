@@ -272,7 +272,7 @@ def scrap_ranking(ranking_edition):
   # scraping data
   for row in ranking_page_rows:
     rank_team = row.find(class_="fi-t__nText").text
-    if(rank_team == COUNTRY):
+    if(rank_team.lower() == COUNTRY):
       rank_number = row.find(class_="fi-table__rank").find('span').text
       rank_total_points = row.find(class_="fi-table__points").find('span').text
       rank_previous_points = row.find(class_="fi-table__prevpoints").find('span').text
@@ -287,8 +287,7 @@ def scrap_ranking(ranking_edition):
       worksheet.cell(rank_info_row, column = RANK.TOTAL_POINTS).value = rank_total_points
       worksheet.cell(rank_info_row, column = RANK.PREVIOUS_POINTS).value = rank_previous_points
       worksheet.cell(rank_info_row, column = RANK.RANK_DIFF).value = rank_diff
-      return
-
+      break
 
 # function calls
 cup_editions = fetch_editions()
