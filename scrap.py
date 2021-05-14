@@ -61,14 +61,16 @@ class GOAL(IntEnum):
   CUP_ID = 2
   PLAYER = 3
   TIME = 4
+  PRO = 5
 
 class RANK(IntEnum):
-  DATE = 1
-  RANK = 2
-  TEAM = 3
-  TOTAL_POINTS = 4
-  PREVIOUS_POINTS = 5
-  RANK_DIFF = 6
+  RANK_ID = 1
+  DATE = 2
+  RANK = 3
+  TEAM = 4
+  TOTAL_POINTS = 5
+  PREVIOUS_POINTS = 6
+  RANK_DIFF = 7
 
 
 # table & sheet creation
@@ -87,7 +89,7 @@ worksheet.cell(cup_info_row, column = CUP.FINAL_PHASE).value = "final_phase"
 worksheet.cell(cup_info_row, column = CUP.WINNER).value = "winner"
 
 worksheet = workbook["match_info"]
-worksheet.cell(match_info_row, column = MATCH.GAME_ID).value = "game_id"
+worksheet.cell(match_info_row, column = MATCH.GAME_ID).value = "match_id"
 worksheet.cell(match_info_row, column = MATCH.CUP_ID).value = "cup_id"
 worksheet.cell(match_info_row, column = MATCH.VERSUS).value = "versus"
 worksheet.cell(match_info_row, column = MATCH.PHASE).value = "phase"
@@ -105,8 +107,10 @@ worksheet.cell(goal_info_row, column = GOAL.MATCH_ID).value = "match_id"
 worksheet.cell(goal_info_row, column = GOAL.CUP_ID).value = "cup_id"
 worksheet.cell(goal_info_row, column = GOAL.PLAYER).value = "player"
 worksheet.cell(goal_info_row, column = GOAL.TIME).value = "time"
+worksheet.cell(goal_info_row, column = GOAL.PRO).value = "pro"
 
 worksheet = workbook["rank_info"]
+worksheet.cell(rank_info_row, column = RANK.RANK_ID).value = "rank_id"
 worksheet.cell(rank_info_row, column = RANK.DATE).value = "date"
 worksheet.cell(rank_info_row, column = RANK.RANK).value = "rank"
 worksheet.cell(rank_info_row, column = RANK.TEAM).value = "team"
@@ -132,24 +136,35 @@ def fetch_editions():
     cup_editions.append(tuple((cup_names.pop(), cup_links.pop())))
   return cup_editions
 
-def scrap_phases(link):
-  match_page = BeautifulSoup(requests.get("https://www.fifa.com" + link + "matches").content, 'html.parser')
-  temp = str(match_page.find_all(class_="tab-main-container"))
-  phases_names = re.findall(r'<span>(.*)<\/span>', temp)
-  phases_links = re.findall(r'<a href="(.*)">', temp)
-  return list(zip(phases_names, phases_links))
+
+def scrap_goals(match_page, match_id, home):
+  global goal_info_row
+  worksheet = workbook["goal_info"]
+  goals = match_page.find_all(class_ = "fi-mh__scorer")
+  for goal in goals:
+    goal_author = goal.find_all(class_ = "fi-p__nShorter")[0].contents[0]
+    goal_time_raw = goal.find_all(class_ = "fi-mh__scorer__minute")[0].contents[0]
+    if(goal_author != "@@shortname"):
+      goal_time = re.findall(r'\s([0-9]*)\'', goal_time_raw)[0]
+      if(goal.parent.parent['class'][0] == 'fi-mh__scorers__away' and home == False):
+        goal_pro = True
+      elif(goal.parent.parent['class'][0] == 'fi-mh__scorers__home' and home == True):
+        goal_pro = True
+      else:
+        goal_pro = False
+      
+      #writing routines
+      goal_info_row += 1
+      worksheet.cell(goal_info_row, column = GOAL.CUP_ID).value = cup_id
+      worksheet.cell(goal_info_row, column = GOAL.MATCH_ID).value = match_id
+      worksheet.cell(goal_info_row, column = GOAL.PLAYER).value = goal_author
+      worksheet.cell(goal_info_row, column = GOAL.TIME).value = goal_time
+      worksheet.cell(goal_info_row, column = GOAL.PRO).value = goal_pro
+
 
 def scrap_matches(link):
-  phases = scrap_phases(link)
-
-  # TODO DEVELOP THIS - CASE SWITZLAND
-  if(len(phases) == 0):
-    return None
-
-  # for phase in phases:
-  # print(phase)
-  phase_page = BeautifulSoup(requests.get("https://www.fifa.com" + link + "matches").content, 'html.parser')  
-  matches = phase_page.find_all(class_ = "fi-mu result fi-mu-national result")
+  matches_page = BeautifulSoup(requests.get("https://www.fifa.com" + link + "matches").content, 'html.parser')  
+  matches = matches_page.find_all(class_ = "fi-mu result fi-mu-national result")
 
   for match in matches:
     team1 = match.find_all(class_ = "fi-t__nText")[0].contents[0]
@@ -160,13 +175,11 @@ def scrap_matches(link):
       scrap_match(link_match)
 
 def scrap_match(link):
-
   global match_info_row
   worksheet = workbook["match_info"]
+  match_info_row += 1
 
   match_page = BeautifulSoup(requests.get("https://www.fifa.com" + link).content, 'html.parser')
-
-  match_info_row += 1
   
   # scrap oponent
   teams = match_page.find_all(class_ = "fi-t__nText")
@@ -178,37 +191,33 @@ def scrap_match(link):
     home = True
     versus = teams[1].contents[0]
 
-  game_id = re.findall(r'match/([0-9]*)/', link)[0]
+  match_id = re.findall(r'match/([0-9]*)/', link)[0]
   stadium = match_page.find_all(class_ = "fi__info__stadium")[0].contents[0][:-1]
   venue = match_page.find_all(class_ = "fi__info__venue")[0].contents[0]
   preprocessed_time = match_page.find_all(class_ = "fi-mu__info__datetime")[0].contents[0]
   time = re.findall(r'^\s*(.*)\s*', preprocessed_time)[0]
+  phase = match_page.find_all(class_ = "fi__info__group fi-ltr--force")[0].contents[0][:-1]
 
-  # scrap goals
-  goals = match_page.find_all(class_ = "fi-s__scoreText")[0].contents[0]
-  home_goal = re.findall(r'([0-9]*)\-', goals)[0]
-  away_goal = re.findall(r'-([0-9]*)\b', goals)[0]
+  # scrap score
+  score = match_page.find_all(class_ = "fi-s__scoreText")[0].contents[0]
+  home_score = re.findall(r'([0-9]*)\-', score)[0]
+  away_score = re.findall(r'-([0-9]*)\b', score)[0]
 
   if(home):
-    goal_pro = home_goal
-    goal_con = away_goal
+    goal_pro = home_score
+    goal_con = away_score
   else:
-    goal_pro = away_goal
-    goal_con = home_goal
+    goal_pro = away_score
+    goal_con = home_score
   if(goal_pro > goal_con):
     result = "win"
   elif(goal_pro == goal_con):
     result = "draw"
   elif(goal_pro < goal_con):
     result = "lose"
-  
 
-
-
-
-  
   # writing routines
-  worksheet.cell(match_info_row, column = MATCH.GAME_ID).value = game_id
+  worksheet.cell(match_info_row, column = MATCH.GAME_ID).value = match_id
   worksheet.cell(match_info_row, column = MATCH.CUP_ID).value = cup_id
   worksheet.cell(match_info_row, column = MATCH.VERSUS).value = versus
   worksheet.cell(match_info_row, column = MATCH.STADIUM).value = stadium
@@ -217,10 +226,10 @@ def scrap_match(link):
   worksheet.cell(match_info_row, column = MATCH.GOAL_PRO).value = goal_pro
   worksheet.cell(match_info_row, column = MATCH.GOAL_CON).value = goal_con
   worksheet.cell(match_info_row, column = MATCH.RESULT).value = result
-
-
-# TODO game_id cup_id versus phase referee referee_nac
-# TODO stadium venue time win goal_pro goal_con
+  worksheet.cell(match_info_row, column = MATCH.PHASE).value = phase
+  
+  scrap_goals(match_page, match_id, home)
+  
 
 def scrap_cup(cup):
   global cup_info_row
@@ -239,15 +248,35 @@ def scrap_cup(cup):
   #scrap matches for cup
   scrap_matches(cup[1])
 
+def fetch_ranking_editions():
+  ranking_page = BeautifulSoup(requests.get("https://www.fifa.com/fifa-world-ranking/ranking-table/men/").content, 'html.parser')
+  ranking_updates_raw = ranking_page.find_all(class_="fi-ranking-schedule__nav__item")
+  ranking_editions = []
+  for ranking_update in ranking_updates_raw:
+    ranking_link = ranking_update.find('a')
+    print(ranking_link['href'])
+    ranking_id = re.findall(r'/rank/id([0-9]*)/', ranking_link['href'])[0]
+    ranking_editions.append((ranking_id, ranking_link.text, ranking_link['href']))
+
+  return ranking_editions
+
+def scrap_ranking(ranking_edition):
+  print("xD")
 
 
 
-cup_editions = fetch_editions()
 
-for cup in cup_editions:
-  scrap_cup(cup)
+# function calls
+# cup_editions = fetch_editions()
 
-# scrap_cup(cup_editions[0])
+# for cup in cup_editions:
+#   scrap_cup(cup)
 
-# request_edition(cup_editions[0][1])
-workbook.save("relatorio.xlsx")
+ranking_editions = fetch_ranking_editions()
+
+for ranking in ranking_editions:
+  scrap_ranking(ranking)
+
+
+# save data
+workbook.save("data.xlsx")
