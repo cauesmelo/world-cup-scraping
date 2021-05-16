@@ -209,6 +209,7 @@ def scrap_match(link):
   else:
     goal_pro = away_score
     goal_con = home_score
+    
   if(goal_pro > goal_con):
     result = "win"
   elif(goal_pro == goal_con):
